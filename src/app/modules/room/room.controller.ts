@@ -1,11 +1,20 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import catchAsync from "../../../shared/catchAsync";
 import RoomModel from "./room.model";
+import HotelModel from "../hotel/hotel.model";
 
 const createRoom = catchAsync(async (req: Request, res: Response) => {
   try {
+    const hotelId = req.params.id;
     const data = req.body;
     const result = await RoomModel.create(data);
+    try {
+      await HotelModel.findByIdAndUpdate(hotelId, {
+        $push: { rooms: result._id },
+      });
+    } catch (err) {
+      throw new Error("Failed to update hotel with new room");
+    }
     if (result) {
       return res.status(201).json({
         status: true,
@@ -49,32 +58,35 @@ const getRoomData = catchAsync(async (req: Request, res: Response) => {
     });
   }
 });
-const getSingleRoomData = catchAsync(async (req: Request, res: Response) => {
-  try {
-    const roomId = req.params.id;
+const getSingleRoomData = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const roomId = req.params.id;
 
-    const room = await RoomModel.findById(roomId);
+      const room = await RoomModel.findById(roomId);
 
-    if (room) {
-      return res.status(200).json({
-        status: true,
-        message: "Room data retrieved successfully.",
-        data: room,
-      });
-    } else {
-      return res.status(404).json({
+      if (room) {
+        return res.status(200).json({
+          status: true,
+          message: "Room data retrieved successfully.",
+          data: room,
+        });
+      } else {
+        return res.status(404).json({
+          status: false,
+          message: "Room not found.",
+        });
+      }
+    } catch (error) {
+      // console.error("Error retrieving Room data:", error);
+      // return next(error);
+      return res.status(500).json({
         status: false,
-        message: "Room not found.",
+        message: "Something went wrong",
       });
     }
-  } catch (error) {
-    console.error("Error retrieving Room data:", error);
-    return res.status(500).json({
-      status: false,
-      message: "Something went wrong",
-    });
   }
-});
+);
 
 const updateRoomData = catchAsync(async (req: Request, res: Response) => {
   try {
@@ -104,12 +116,43 @@ const updateRoomData = catchAsync(async (req: Request, res: Response) => {
     });
   }
 });
-const deleteRoomData = catchAsync(async (req: Request, res: Response) => {
+const updateRoomAvailability = catchAsync(
+  async (req: Request, res: Response) => {
+    try {
+      await RoomModel.updateOne(
+        { "roomNumbers._id": req.params.id },
+        {
+          $push: {
+            "roomNumbers.$.unavailableDates": req.body.dates,
+          },
+        }
+      );
+      res.status(200).json("Room status has been updated.");
+    } catch (err: any) {
+      return res.status(500).json({
+        status: false,
+        message: "Something went wrong",
+      });
+    }
+  }
+);
+const deleteRoom = catchAsync(async (req: Request, res: Response) => {
   try {
     const roomId = req.params.id;
+    const hotelId = req.params.hotelid;
 
     const deletedRoom = await RoomModel.findByIdAndDelete(roomId);
 
+    try {
+      await HotelModel.findByIdAndUpdate(hotelId, {
+        $pull: { rooms: req.params.id },
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        status: false,
+        message: "Something went wrong",
+      });
+    }
     if (deletedRoom) {
       return res.status(200).json({
         status: true,
@@ -123,7 +166,7 @@ const deleteRoomData = catchAsync(async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error("Error deleting Room data:", error);
+    // console.error("Error deleting Room data:", error);
     return res.status(500).json({
       status: false,
       message: "Something went wrong",
@@ -135,5 +178,6 @@ export const RoomController = {
   getRoomData,
   getSingleRoomData,
   updateRoomData,
-  deleteRoomData,
+  deleteRoom,
+  updateRoomAvailability,
 };

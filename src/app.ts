@@ -24,12 +24,35 @@ app.use(express.urlencoded({ extended: true }));
 app.get("/", (req, res) => {
   res.status(200).json({ status: 200, message: " Our server is Running 🚀" });
 });
+
 app.use("/api/v1", UserRoute);
 app.use("/api/v1", HotelRoute);
 app.use("/api/v1", RoomRoute);
 
-//  global error handling || next => Error 4 parameter ||
-// app.use(globalErrorHandler);
+// global error handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  const errorStatus = err.status || 500;
+  const errorMessage = err.message || "Something went wrong";
+
+  // Split the error message by slash ('/') and check if it produces an array with more than one element
+  const errorMessageParts = errorMessage.split("/");
+  const messageAfterSlash =
+    errorMessageParts.length > 1 ? errorMessageParts[1].trim() : errorMessage;
+
+  const stack = err.stack || "";
+
+  // Split the stack trace by slash ('/') and check if it produces an array with more than one element
+  const stackAfterSlash =
+    stack.split("/").length > 1 ? stack.split("/")[1].trim() : stack;
+
+  return res.status(errorStatus).json({
+    success: false,
+    status: errorStatus,
+    message: messageAfterSlash,
+    stack: stackAfterSlash,
+    name: err.name,
+  });
+});
 
 // route not found
 app.use((req: Request, res: Response, next: NextFunction) => {
