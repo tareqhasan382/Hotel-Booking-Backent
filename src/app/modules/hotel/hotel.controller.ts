@@ -29,15 +29,20 @@ const createHotel = catchAsync(async (req: Request, res: Response) => {
 });
 const getHotelData = catchAsync(async (req: Request, res: Response) => {
   try {
-    const { min, max, ...others } = req.query;
+    const { min, max, limit: rawLimit, ...others } = req.query;
+    console.log("limit:", req.query.limit);
 
+    const limit =
+      typeof rawLimit === "string" ? parseInt(rawLimit, 10) : undefined;
+
+    const parsedLimit = limit && !isNaN(limit) && limit > 0 ? limit : 4;
     const hotels = await HotelModel.find({
       ...others,
       cheapestPrice: {
         $gt: parseInt(min?.toString() || "1"),
         $lt: parseInt(max?.toString() || "999"),
       },
-    }).limit(parseInt(req.query.limit as string));
+    }).limit(parsedLimit);
     if (hotels.length > 0) {
       return res.status(200).json({
         status: true,
